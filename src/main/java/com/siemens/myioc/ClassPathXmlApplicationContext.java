@@ -7,7 +7,9 @@ import org.dom4j.Element;
 import org.dom4j.io.SAXReader;
 import org.xml.sax.SAXException;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -36,25 +38,38 @@ public class ClassPathXmlApplicationContext implements ApplicationContext {
                String className = element.attributeValue("class");
                //通过反射机制创建对象
                Class clazz = Class.forName(className);
-               Student obj = (Student) clazz.getConstructor().newInstance();
+               Object obj = clazz.getConstructor().newInstance();
                //给目标对象赋值
                Iterator propertyIterator = element.elementIterator();
                while (propertyIterator.hasNext()){
                    Element propertyElement = (Element) propertyIterator.next();
-                   if(propertyElement.attributeValue("name").equals("id")){
-                       long pid = Long.parseLong(propertyElement.attributeValue("value"));
-                       obj.setId(pid);
-                   }
-                   if(propertyElement.attributeValue("name").equals("name")){
-                       String pname = propertyElement.attributeValue("value");
-                       obj.setName(pname);
-                   }
-                   if(propertyElement.attributeValue("name").equals("age")){
-                       int page = Integer.parseInt(propertyElement.attributeValue("value"));
-                       obj.setAge(page);
-                   }
+                   //实现赋值 通过Method 和 Field
+                   String name = propertyElement.attributeValue("name");
+                   String valueStr = propertyElement.attributeValue("value");
+                   // 因为set方法 固定 setXxxxx名规则
+                   String methodName = "set"+name.substring(0,1).toUpperCase()+name.substring(1);
+                   Field field = clazz.getDeclaredField(name);
+                   Method method = clazz.getDeclaredMethod(methodName, field.getType());
+                   //先打印出 便于做判断的条件
+                   System.out.println(field.getType().getName());
+                   //根据成员变量的数据类型 将value进行转换
+                   Object value = null;
+                 if (field.getType().getName()=="long"){
+                     value = Long.parseLong(valueStr);
+                     method.invoke(obj,value);
+                 }
+                 if (field.getType().getName()=="java.lang.String"){
+                     value = valueStr;
+                     method.invoke(obj,value);
+                 }
+                 if(field.getType().getName()=="int"){
+                     value = Integer.parseInt(valueStr);
+                     method.invoke(obj,value);
+                 }
                }
-               System.out.println(obj);
+
+              // System.out.println(obj);
+               ioc.put(id,obj);
            }
 
        } catch (DocumentException ex) {
@@ -68,6 +83,8 @@ public class ClassPathXmlApplicationContext implements ApplicationContext {
        } catch (IllegalAccessException e) {
            e.printStackTrace();
        } catch (ClassNotFoundException e) {
+           e.printStackTrace();
+       } catch (NoSuchFieldException e) {
            e.printStackTrace();
        }
    }
